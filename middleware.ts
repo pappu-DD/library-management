@@ -1,49 +1,47 @@
-import { clerkMiddleware, createRouteMatcher, getAuth } from '@clerk/nextjs/server';
+// middleware.ts
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const isPublicRoute = createRouteMatcher([
-  '/sign-in(.*)', 
-  '/sign-up(.*)', 
-  '/',
-  '/books',
-  '/about',
-  '/contact'
-]);
-
-const isStudentRoute = createRouteMatcher([
-  '/student(.*)',
-  '/student/dashboard(.*)'
-]);
-
-const isLibrarianRoute = createRouteMatcher([
-  '/librarian(.*)',
-  '/librarian/dashboard(.*)'
+// Define protected routes
+const isProtectedRoute = createRouteMatcher([
+  '/dashboard(.*)', // Now protecting all dashboard routes
 ]);
 
 export default clerkMiddleware(async (auth, req: NextRequest) => {
-  if (!isPublicRoute(req)) {
-    // ✅ Use getAuth here
-    const { userId, sessionClaims } = getAuth(req);
+  // Public routes that don't require authentication
+  const publicRoutes = ['/', '/books', '/about', '/contact', '/sign-in(.*)'];
+  const isPublicRoute = publicRoutes.some(route => {
+    const regex = new RegExp(`^${route.replace('(.*)', '.*')}$`);
+    return regex.test(req.nextUrl.pathname);
+  });
 
-    if (!userId) {
-      return new Response('Unauthorized', { status: 401 });
-    }
-
-    const userType = (sessionClaims?.metadata as { userType?: string })?.userType;
-
-    if (isStudentRoute(req) && userType !== 'student') {
-      return new Response('Unauthorized - Student access only', { status: 403 });
-    }
-
-    if (isLibrarianRoute(req) && userType !== 'librarian') {
-      return new Response('Unauthorized - Librarian access only', { status: 403 });
-    }
+  if (isPublicRoute) {
+    return NextResponse.next();
   }
+
+  // Get auth state
+  const { userId } = await auth();
+
+  // Handle unauthenticated users trying to access protected routes
+  if (!userId && isProtectedRoute(req)) {
+    return NextResponse.redirect(new URL('/sign-in', req.url));
+  }
+
+  // Redirect authenticated users from auth pages to dashboard
+  if (userId && ['/', '/sign-in'].includes(req.nextUrl.pathname)) {
+    return NextResponse.redirect(new URL('/dashboard', req.url));
+  }
+
+  // Allow access to protected routes for authenticated users
+  if (userId && isProtectedRoute(req)) {
+    return NextResponse.next();
+  }
+
+  // Default allow for other authenticated routes
+  return NextResponse.next();
 });
 
 export const config = {
-  matcher: [
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    '/(api|trpc)(.*)',
-  ],
+  matcher: ['/((?!.*\\..*|_next).*)', '/', '/(api|trpc)(.*)'],
 };

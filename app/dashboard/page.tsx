@@ -1,136 +1,541 @@
 'use client';
 
-import { BookOpen, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { useUser } from '@clerk/nextjs';
+import StudentDashboardComponent from './student/page';
 
-// Mock data for demonstration
-const mockBorrowedBooks = [
-  {
-    id: 1,
-    title: 'The Great Gatsby',
-    author: 'F. Scott Fitzgerald',
-    dueDate: '2024-04-20',
-    status: 'active',
-    cover: '/book-covers/great-gatsby.jpg'
-  },
-  {
-    id: 2,
-    title: 'To Kill a Mockingbird',
-    author: 'Harper Lee',
-    dueDate: '2024-04-15',
-    status: 'overdue',
-    cover: '/book-covers/mockingbird.jpg'
-  },
-  {
-    id: 3,
-    title: '1984',
-    author: 'George Orwell',
-    dueDate: '2024-04-25',
-    status: 'active',
-    cover: '/book-covers/1984.jpg'
-  },
-];
+import { 
+  BookOpen, 
+  Users, 
+  BookCheck, 
+  BookX, 
+  PlusCircle,
+  Search,
+  Bell,
+  Clock,
+  BarChart,
+  Settings,
+  LogOut
+} from 'lucide-react';
 
-export default function DashboardPage() {
+interface Book {
+  id: number;
+  title: string;
+  author: string;
+  category: string;
+  description: string;
+  cover: string;
+  status: 'Available' | 'Borrowed';
+}
+
+const StudentDashboard = () => {
+  const stats = [
+    { title: 'Books Borrowed', value: '5', icon: BookOpen, color: 'bg-blue-500' },
+    { title: 'Currently Reading', value: '2', icon: BookCheck, color: 'bg-green-500' },
+    { title: 'Overdue Books', value: '0', icon: BookX, color: 'bg-red-500' },
+    { title: 'Reading Hours', value: '24', icon: Clock, color: 'bg-yellow-500' },
+  ];
+
   return (
-    <div className="space-y-8">
-      {/* Welcome Section */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-2xl font-bold mb-2">Welcome back, John!</h1>
-        <p className="text-gray-600">Here's an overview of your library activity.</p>
-      </div>
+    <div className="">
+      <StudentDashboardComponent />
+    </div>
+  );
+};
 
-      {/* Stats Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center space-x-4">
-            <div className="bg-blue-100 p-3 rounded-full">
-              <BookOpen className="w-6 h-6 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-gray-600">Books Borrowed</p>
-              <p className="text-2xl font-bold">3</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center space-x-4">
-            <div className="bg-green-100 p-3 rounded-full">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-            <div>
-              <p className="text-gray-600">Books Returned</p>
-              <p className="text-2xl font-bold">12</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center space-x-4">
-            <div className="bg-yellow-100 p-3 rounded-full">
-              <Clock className="w-6 h-6 text-yellow-600" />
-            </div>
-            <div>
-              <p className="text-gray-600">Reading Time</p>
-              <p className="text-2xl font-bold">24h</p>
-            </div>
-          </div>
-        </div>
-      </div>
+const LibrarianDashboard = () => {
+  const [showAddBookModal, setShowAddBookModal] = useState(false);
+  const [showEditBookModal, setShowEditBookModal] = useState(false);
+  const [books, setBooks] = useState<Book[]>([]);
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const [newBook, setNewBook] = useState<Omit<Book, 'id'>>({
+    title: '',
+    author: '',
+    category: '',
+    description: '',
+    cover: '',
+    status: 'Available'
+  });
 
-      {/* Borrowed Books Section */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-4">Your Borrowed Books</h2>
-        <div className="space-y-4">
-          {mockBorrowedBooks.map((book) => (
-            <div key={book.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-16 bg-gray-200 rounded flex items-center justify-center">
-                  <BookOpen className="w-8 h-8 text-gray-400" />
-                </div>
+  const handleAddBook = (e: React.FormEvent) => {
+    e.preventDefault();
+    setBooks([...books, { ...newBook, id: Date.now() }]);
+    setNewBook({
+      title: '',
+      author: '',
+      category: '',
+      description: '',
+      cover: '',
+      status: 'Available'
+    });
+    setShowAddBookModal(false);
+  };
+
+  const handleEditBook = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedBook) {
+      setBooks(books.map(book => 
+        book.id === selectedBook.id ? selectedBook : book
+      ));
+      setShowEditBookModal(false);
+      setSelectedBook(null);
+    }
+  };
+
+  const handleDeleteBook = (bookId: number) => {
+    if (window.confirm('Are you sure you want to delete this book?')) {
+      setBooks(books.filter(book => book.id !== bookId));
+    }
+  };
+
+  const handleEditClick = (book: Book) => {
+    setSelectedBook(book);
+    setShowEditBookModal(true);
+  };
+
+  const stats = [
+    { title: 'Total Books', value: books.length, icon: BookOpen, color: 'bg-blue-500' },
+    { title: 'Available Books', value: books.filter(b => b.status === 'Available').length, icon: BookCheck, color: 'bg-green-500' },
+    { title: 'Borrowed Books', value: books.filter(b => b.status === 'Borrowed').length, icon: BookX, color: 'bg-red-500' },
+    { title: 'Total Members', value: '150', icon: Users, color: 'bg-purple-500' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-fuchsia-400 rounded-3xl p-4 md:p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white">Librarian Dashboard</h1>
+          <p className="text-white">Manage books and library operations</p>
+        </div>
+
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {stats.map((stat) => (
+            <div key={stat.title} className="bg-white p-6 rounded-lg shadow-sm">
+              <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-medium">{book.title}</h3>
-                  <p className="text-sm text-gray-600">{book.author}</p>
+                  <p className="text-sm text-gray-500">{stat.title}</p>
+                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
                 </div>
-              </div>
-              <div className="flex items-center space-x-4">
-                <div className={`flex items-center space-x-1 ${
-                  book.status === 'overdue' ? 'text-red-600' : 'text-gray-600'
-                }`}>
-                  {book.status === 'overdue' ? (
-                    <AlertCircle className="w-5 h-5" />
-                  ) : (
-                    <Clock className="w-5 h-5" />
-                  )}
-                  <span>Due: {book.dueDate}</span>
+                <div className={`p-3 rounded-full bg-gray-100 ${stat.color}`}>
+                  <stat.icon className="w-6 h-6" />
                 </div>
-                <button className="text-blue-600 hover:text-blue-800 transition">
-                  Return Book
-                </button>
               </div>
             </div>
           ))}
         </div>
-      </div>
 
-      {/* Reading History Section */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-4">Reading History</h2>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 border rounded-lg">
+        {/* Quick Actions */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-gray-900">Quick Actions</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <button
+              onClick={() => setShowAddBookModal(true)}
+              className="flex items-center justify-center p-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+            >
+              <PlusCircle className="w-5 h-5 mr-2" />
+              Add New Book
+            </button>
+           
+          </div>
+        </div>
+
+        {/* Books List */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-gray-900">All Books</h2>
             <div className="flex items-center space-x-4">
-              <div className="w-12 h-16 bg-gray-200 rounded flex items-center justify-center">
-                <BookOpen className="w-8 h-8 text-gray-400" />
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search books..."
+                  className="pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
-              <div>
-                <h3 className="font-medium">The Hobbit</h3>
-                <p className="text-sm text-gray-600">J.R.R. Tolkien</p>
-              </div>
+              <select className="border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option>All Categories</option>
+                <option>Programming</option>
+                <option>Fiction</option>
+                <option>Non-Fiction</option>
+              </select>
             </div>
-            <div className="text-sm text-gray-600">
-              Returned on: 2024-04-10
-            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Author</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {books.map((book) => (
+                  <tr key={book.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">{book.title}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{book.author}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{book.category}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        book.status === 'Available' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {book.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button 
+                        onClick={() => handleEditClick(book)}
+                        className="text-blue-600 hover:text-blue-900 mr-3"
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteBook(book.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
+
+      {/* Add Book Modal */}
+      {showAddBookModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="text-2xl font-bold text-gray-800">Add New Book</h2>
+                <button
+                  onClick={() => setShowAddBookModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+              <form onSubmit={handleAddBook}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                    <input
+                      type="text"
+                      className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={newBook.title}
+                      onChange={(e) => setNewBook({ ...newBook, title: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Author</label>
+                    <input
+                      type="text"
+                      className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={newBook.author}
+                      onChange={(e) => setNewBook({ ...newBook, author: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <input
+                      type="text"
+                      className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={newBook.category}
+                      onChange={(e) => setNewBook({ ...newBook, category: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Cover URL</label>
+                    <input
+                      type="text"
+                      className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={newBook.cover}
+                      onChange={(e) => setNewBook({ ...newBook, cover: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={4}
+                    value={newBook.description}
+                    onChange={(e) => setNewBook({ ...newBook, description: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddBookModal(false)}
+                    className="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Add Book
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Book Modal */}
+      {showEditBookModal && selectedBook && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="text-2xl font-bold text-gray-800">Edit Book</h2>
+                <button
+                  onClick={() => {
+                    setShowEditBookModal(false);
+                    setSelectedBook(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+              <form onSubmit={handleEditBook}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                    <input
+                      type="text"
+                      className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={selectedBook.title}
+                      onChange={(e) => setSelectedBook({ ...selectedBook, title: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Author</label>
+                    <input
+                      type="text"
+                      className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={selectedBook.author}
+                      onChange={(e) => setSelectedBook({ ...selectedBook, author: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <input
+                      type="text"
+                      className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={selectedBook.category}
+                      onChange={(e) => setSelectedBook({ ...selectedBook, category: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Cover URL</label>
+                    <input
+                      type="text"
+                      className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={selectedBook.cover}
+                      onChange={(e) => setSelectedBook({ ...selectedBook, cover: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={4}
+                    value={selectedBook.description}
+                    onChange={(e) => setSelectedBook({ ...selectedBook, description: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={selectedBook.status}
+                    onChange={(e) => setSelectedBook({ ...selectedBook, status: e.target.value as 'Available' | 'Borrowed' })}
+                  >
+                    <option value="Available">Available</option>
+                    <option value="Borrowed">Borrowed</option>
+                  </select>
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditBookModal(false);
+                      setSelectedBook(null);
+                    }}
+                    className="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-} 
+};
+
+export default function Dashboard() {
+  const { user } = useUser();
+  const [activeTab, setActiveTab] = useState('student');
+  const [showLibrarianLogin, setShowLibrarianLogin] = useState(false);
+  const [librarianCredentials, setLibrarianCredentials] = useState({
+    email: '',
+    password: ''
+  });
+
+  const handleLibrarianLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (librarianCredentials.email === 'admin@gmail.com' && 
+        librarianCredentials.password === 'admin123') {
+      setActiveTab('librarian');
+      setShowLibrarianLogin(false);
+    } else {
+      alert('Invalid credentials');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-black to-yellow-300">
+      {/* Header */}
+      <header className="bg-white shadow p-2">
+        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 bg-red-400  m-2 rounded-3xl">
+          <div className="flex justify-between items-center">
+            <h1 className="text-3xl font-bold text-white">Dashboard</h1>
+            <div className="flex items-center space-x-4">
+              <button className="p-2 rounded-full hover:bg-gray-100">
+                <Bell className="h-6 w-6 text-gray-600" />
+              </button>
+              <div className="flex items-center space-x-2">
+                <span className=" font-medium text-white">
+                  Welcome, {user?.firstName || 'User'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        {/* Tabs */}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('student')}
+              className={`${
+                activeTab === 'student'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              Student Dashboard
+            </button>
+            <button
+              onClick={() => {
+                if (activeTab !== 'librarian') {
+                  setShowLibrarianLogin(true);
+                }
+              }}
+              className={`${
+                activeTab === 'librarian'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              Librarian Dashboard
+            </button>
+          </nav>
+        </div>
+
+        {/* Librarian Login Modal */}
+        {showLibrarianLogin && (
+          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Librarian Login</h2>
+              <form onSubmit={handleLibrarianLogin}>
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      id="email"
+                      value={librarianCredentials.email}
+                      onChange={(e) => setLibrarianCredentials({...librarianCredentials, email: e.target.value})}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      id="password"
+                      value={librarianCredentials.password}
+                      onChange={(e) => setLibrarianCredentials({...librarianCredentials, password: e.target.value})}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="mt-5 flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowLibrarianLogin(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                  >
+                    Login
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Dashboard Content */}
+        <div className="mt-6">
+          {activeTab === 'student' ? <StudentDashboard /> : <LibrarianDashboard />}
+        </div>
+      </main>
+    </div>
+  );
+}

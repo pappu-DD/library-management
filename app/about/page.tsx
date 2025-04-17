@@ -89,9 +89,9 @@ export default function AboutPage() {
         </div>
 
         {/* Features Grid */}
-        <div className="bg-gray-100 py-16">
+        <div className="bg-gradient-to-l from-black to-yellow-300 py-16">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">By The Numbers</h2>
+            <h2 className="text-3xl font-bold text-center text-white mb-12">By The Numbers</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
               {features.map((feature, index) => (
                 <div 
@@ -117,7 +117,7 @@ export default function AboutPage() {
         </div>
 
         {/* History Section */}
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="px-4 sm:px-6 m-2 py-16 bg-gradient-to-t from-black to-green">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Our Journey</h2>
             
