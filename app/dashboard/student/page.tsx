@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { BookOpen, Clock, History, BookCheck } from "lucide-react";
+import { useBookContext } from "../../context/BookContext";
 
 interface Book {
   id: number;
@@ -15,49 +16,8 @@ interface Book {
   returnDate?: string;
 }
 
-// Mock data for demonstration
-const mockBorrowedBooks: Book[] = [
-  {
-    id: 1,
-    title: "Java Programming",
-    author: "James Gosling",
-    category: "Programming",
-    status: "Borrowed",
-    cover: "java.png",
-    description: "Comprehensive guide to Java programming language",
-    borrowDate: "2024-04-10",
-    returnDate: "2024-04-24"
-  },
-  {
-    id: 2,
-    title: "Python Crash Course",
-    author: "Eric Matthes",
-    category: "Programming",
-    status: "Borrowed",
-    cover: "python.png",
-    description: "Hands-on introduction to Python programming",
-    borrowDate: "2024-04-15",
-    returnDate: "2024-04-29"
-  }
-];
-
-const mockBorrowingHistory: Book[] = [
-  {
-    id: 3,
-    title: "JavaScript: The Definitive Guide",
-    author: "David Flanagan",
-    category: "Web Development",
-    status: "Returned",
-    cover: "javascript.png",
-    description: "Complete reference for JavaScript",
-    borrowDate: "2024-03-01",
-    returnDate: "2024-03-15"
-  }
-];
-
 export default function StudentDashboard() {
-  const [borrowedBooks, setBorrowedBooks] = useState<Book[]>(mockBorrowedBooks);
-  const [borrowingHistory, setBorrowingHistory] = useState<Book[]>(mockBorrowingHistory);
+  const { borrowedBooks } = useBookContext();
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
 
   const stats = [
@@ -159,10 +119,10 @@ export default function StudentDashboard() {
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-gray-900">Reading History</h2>
-            <span className="text-sm text-gray-500">{borrowingHistory.length} books</span>
+            <span className="text-sm text-gray-500">{borrowedBooks.length} books</span>
           </div>
           <div className="space-y-4">
-            {borrowingHistory.map((book) => (
+            {borrowedBooks.map((book) => (
               <div
                 key={book.id}
                 className="border rounded-lg p-4 hover:shadow-md transition cursor-pointer"
@@ -184,7 +144,7 @@ export default function StudentDashboard() {
                     <h3 className="font-medium text-gray-900">{book.title}</h3>
                     <p className="text-sm text-gray-500">{book.author}</p>
                     <div className="mt-2 flex items-center text-sm text-gray-500">
-                      <History className="w-4 h-4 mr-1" />
+                      <Clock className="w-4 h-4 mr-1" />
                       <span>Borrowed: {book.borrowDate} - Returned: {book.returnDate}</span>
                     </div>
                   </div>

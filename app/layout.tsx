@@ -4,6 +4,8 @@ import "./globals.css";
 import Header from "./components/header";
 import { AuthProvider } from './context/AuthContext';
 import { ClerkProvider } from '@clerk/nextjs';
+import { BookProvider } from "./context/BookContext";
+import { BooksProvider } from "./context/BooksContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,16 +30,20 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <AuthProvider>
-        <html lang="en">
-          <body
-            className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
-          >
-            <Header />
-            <main className="flex-grow  ">
-              {children}
-            </main>
-          </body>
-        </html>
+        <BooksProvider>
+          <BookProvider>
+            <html lang="en">
+              <body
+                className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
+              >
+                <Header />
+                <main className="flex-grow  ">
+                  {children}
+                </main>
+              </body>
+            </html>
+          </BookProvider>
+        </BooksProvider>
       </AuthProvider>
     </ClerkProvider>
   );

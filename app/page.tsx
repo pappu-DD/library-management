@@ -1,4 +1,5 @@
 "use client";
+import { useUser } from "@clerk/nextjs";
 import {
   BookOpen,
   Search,
@@ -10,7 +11,7 @@ import {
   Settings,
 } from "lucide-react";
 import Link from "next/link";
-import { useState, useRef } from "react";
+import { useState, useEffect,useRef } from "react";
 
 export default function Home() {
   const [showToast, setShowToast] = useState(false);
@@ -39,6 +40,35 @@ export default function Home() {
       setIsSubmitting(false);
     }
   };
+
+  const { isSignedIn, isLoaded, user } = useUser(); // Get authentication state
+
+  useEffect(() => {
+    async function saveUserToDB() {
+      if (!user) return;
+
+      try {
+        await fetch("/api/save-user", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: user.fullName,
+            email: user.emailAddresses[0]?.emailAddress,
+            imageUrl: user.imageUrl,
+          }),
+        });
+      } catch (error) {
+        console.error("Failed to save user:", error);
+      }
+    }
+
+    if (isSignedIn) {
+      saveUserToDB(); // Auto save when signed in
+    }
+  }, [isSignedIn, user]);
+
 
   return (
     <div className="flex flex-col bg-gradient-to-br from-sky-50 to-red-500 text-gray-900 font-sans min-h-screen">

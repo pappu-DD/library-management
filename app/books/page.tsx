@@ -2,118 +2,10 @@
 
 import { useState } from "react";
 import { Search, Filter, BookOpen, Clock, User, Calendar } from "lucide-react";
+import { useBookContext } from "../context/BookContext";
+import { useBooksContext } from "../context/BooksContext";
 
-// Mock data for demonstration
-const mockBooks = [
-  {
-    id: 1,
-    title: "Java Programming",
-    author: "James Gosling",
-    category: "Programming",
-    status: "Available",
-    cover: "java.png",
-    description: "Comprehensive guide to Java programming language covering core concepts, OOP principles, and advanced features."
-  },
-  {
-    id: 2,
-    title: "C Programming",
-    author: "Brian Kernighan",
-    category: "Programming",
-    status: "Borrowed",
-    cover: "c.png",
-    description: "The definitive reference on C programming language, written by its creators. Essential for systems programming."
-  },
-  {
-    id: 3,
-    title: "Python Crash Course",
-    author: "Eric Matthes",
-    category: "Programming",
-    status: "Available",
-    cover: "python.png",
-    description: "Hands-on introduction to Python programming with practical projects. Perfect for beginners and intermediate learners."
-  },
-    {
-    id: 4,
-    title: "JavaScript: The Definitive Guide",
-    author: "David Flanagan",
-    category: "Web Development",
-    status: "Available",
-    cover: "javascript.png",
-    description: "Complete reference for JavaScript and web development. Covers ES6+ features and modern frameworks."
-  },
-  {
-    id: 5,
-    title: "Clean Code",
-    author: "Robert C. Martin",
-    category: "Software Engineering",
-    status: "Available",
-    cover: "clean-code.png",
-    description: "A handbook of agile software craftsmanship that teaches best practices for writing clean, maintainable code."
-  },
-  {
-    id: 6,
-    title: "You Don't Know JS (Yet)",
-    author: "Kyle Simpson",
-    category: "JavaScript",
-    status: "Checked Out",
-    cover: "ydkjs.png",
-    description: "In-depth exploration of JavaScript's mechanics and design. A must-read series for mastering JS."
-  },
-  {
-    id: 7,
-    title: "Eloquent JavaScript",
-    author: "Marijn Haverbeke",
-    category: "Web Development",
-    status: "Available",
-    cover: "eloquent-js.png",
-    description: "A modern introduction to JavaScript with interactive examples and functional programming insights."
-  },
-  {
-    id: 8,
-    title: "Design Patterns: Elements of Reusable Object-Oriented Software",
-    author: "Erich Gamma et al.",
-    category: "Software Design",
-    status: "Available",
-    cover: "design-patterns.png",
-    description: "Classic book introducing 23 design patterns and principles for building reusable object-oriented software."
-  },
-  {
-    id: 9,
-    title: "Introduction to Algorithms",
-    author: "Thomas H. Cormen",
-    category: "Computer Science",
-    status: "Available",
-    cover: "algorithms.png",
-    description: "Widely used textbook for learning algorithms with detailed explanations and pseudocode."
-  },
-  {
-    id: 10,
-    title: "The Pragmatic Programmer",
-    author: "Andrew Hunt, David Thomas",
-    category: "Software Engineering",
-    status: "Checked Out",
-    cover: "pragmatic-programmer.png",
-    description: "Timeless tips for becoming a better programmer, covering practical advice and career wisdom."
-  },
-  {
-    id: 11,
-    title: "Python for Data Analysis",
-    author: "Wes McKinney",
-    category: "Data Science",
-    status: "Available",
-    cover: "python-data-analysis.png",
-    description: "Focuses on using Python’s data libraries like pandas, NumPy, and matplotlib for real-world data analysis."
-  },
-  {
-    id: 12,
-    title: "React Up and Running",
-    author: "Stoyan Stefanov",
-    category: "Web Development",
-    status: "Available",
-    cover: "react-up.png",
-    description: "Covers the core principles of React.js with real projects and scalable component architecture."
-  }
-];
+// Remove mockBooks array since we'll use the context
 
 interface Book {
   id: number;
@@ -134,6 +26,8 @@ export default function BooksPage() {
     studentName: "",
     returnDate: "",
   });
+  const { addBorrowedBook } = useBookContext();
+  const { books } = useBooksContext();
 
   const categories = [
     "All",
@@ -145,7 +39,7 @@ export default function BooksPage() {
   ];
 
   // Filter books based on search and category
-  const filteredBooks = mockBooks.filter((book) => {
+  const filteredBooks = books.filter((book) => {
     const matchesSearch =
       book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       book.author.toLowerCase().includes(searchQuery.toLowerCase());
@@ -156,14 +50,22 @@ export default function BooksPage() {
 
   const handleBorrowSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // In a real app, you would send this data to your backend
-    alert(`Book borrowed successfully! Return by: ${borrowForm.returnDate}`);
-    setSelectedBook(null);
-    setBorrowForm({
-      studentId: "",
-      studentName: "",
-      returnDate: "",
-    });
+    if (selectedBook) {
+      const borrowedBook = {
+        ...selectedBook,
+        status: "Borrowed",
+        borrowDate: new Date().toISOString().split('T')[0],
+        returnDate: borrowForm.returnDate,
+      };
+      addBorrowedBook(borrowedBook);
+      alert(`Book borrowed successfully! Return by: ${borrowForm.returnDate}`);
+      setSelectedBook(null);
+      setBorrowForm({
+        studentId: "",
+        studentName: "",
+        returnDate: "",
+      });
+    }
   };
 
   return (
