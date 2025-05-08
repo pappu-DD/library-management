@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Search, Filter, BookOpen, Clock, User, Calendar } from "lucide-react";
 import { useBookContext } from "../context/BookContext";
-import { useBooksContext } from "../context/BooksContext";
-
-// Remove mockBooks array since we'll use the context
+import { useUser } from "@clerk/nextjs";
 
 interface Book {
   id: number;
@@ -15,19 +13,22 @@ interface Book {
   status: string;
   cover: string;
   description: string;
+  borrowDate?: string | null;
+  returnDate?: string | null;
+  dueDate?: string | null;
 }
-
 export default function BooksPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [borrowForm, setBorrowForm] = useState({
-    studentId: "",
-    studentName: "",
     returnDate: "",
   });
+  const [books, setBooks] = useState<Book[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { addBorrowedBook } = useBookContext();
-  const { books } = useBooksContext();
+  const { user } = useUser();
 
   const categories = [
     "All",
@@ -38,33 +39,116 @@ export default function BooksPage() {
     "Romance",
   ];
 
-  // Filter books based on search and category
+  const fetchBooks = useCallback(async () => {
+    if (!user) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/books?userId=${user.id}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data: Book[] = await response.json();
+      setBooks(data);
+    } catch (e: any) {
+      console.error("Failed to fetch books:", e);
+      setError("Failed to load books.");
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchBooks();
+  }, [fetchBooks]);
+
   const filteredBooks = books.filter((book) => {
+    const searchQueryLower = searchQuery.toLowerCase();
+    const titleLower = book.title?.toLowerCase() || "";
+    const authorLower = book.author?.toLowerCase() || "";
+
     const matchesSearch =
-      book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      book.author.toLowerCase().includes(searchQuery.toLowerCase());
+      titleLower.includes(searchQueryLower) ||
+      authorLower.includes(searchQueryLower) ||
+      book.description?.toLowerCase().includes(searchQueryLower);
+
     const matchesCategory =
       selectedCategory === "All" || book.category === selectedCategory;
+
     return matchesSearch && matchesCategory;
   });
 
-  const handleBorrowSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleBorrowSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (selectedBook) {
-      const borrowedBook = {
-        ...selectedBook,
+    if (selectedBook && user) {
+      const borrowData = {
+        bookId: selectedBook.id,
+        userId: user.id,
         status: "Borrowed",
-        borrowDate: new Date().toISOString().split('T')[0],
-        returnDate: borrowForm.returnDate,
+        borrowDate: new Date().toISOString(),
+        dueDate: borrowForm.returnDate,
       };
-      addBorrowedBook(borrowedBook);
-      alert(`Book borrowed successfully! Return by: ${borrowForm.returnDate}`);
-      setSelectedBook(null);
-      setBorrowForm({
-        studentId: "",
-        studentName: "",
-        returnDate: "",
-      });
+
+      try {
+        const bookResponse = await fetch(`/api/books`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            id: selectedBook.id,
+            status: "Borrowed",
+          }),
+        });
+
+        if (!bookResponse.ok) {
+          throw new Error("Failed to update book status");
+        }
+
+        const borrowResponse = await fetch(`/api/borrowed-books`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(borrowData),
+        });
+
+        if (!borrowResponse.ok) {
+          throw new Error("Failed to create borrowed book record");
+        }
+
+        setBooks((prevBooks) =>
+          prevBooks.map((book) =>
+            book.id === selectedBook.id
+              ? {
+                  ...book,
+                  status: "Borrowed",
+                  borrowDate: borrowData.borrowDate,
+                  dueDate: borrowData.dueDate,
+                }
+              : book
+          )
+        );
+
+        const borrowedBook = {
+          ...selectedBook,
+          status: "Borrowed",
+          borrowDate: borrowData.borrowDate,
+          dueDate: borrowData.dueDate,
+          returnDate: undefined, // or null if you prefer
+        };
+
+        addBorrowedBook(borrowedBook);
+        alert(`Book borrowed successfully! Due date: ${borrowForm.returnDate}`);
+        setSelectedBook(null);
+        setBorrowForm({
+          returnDate: "",
+        });
+      } catch (error) {
+        console.error("Error borrowing book:", error);
+        alert("Failed to borrow book. Please try again.");
+      }
     }
   };
 
@@ -74,9 +158,9 @@ export default function BooksPage() {
         {/* Header Section */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">
-            Library Catalog
+            My Borrowed Books
           </h1>
-          <p className="text-white">Browse and borrow from our collection</p>
+          <p className="text-white">View and manage your borrowed books</p>
         </div>
 
         {/* Search and Filter Section */}
@@ -109,62 +193,83 @@ export default function BooksPage() {
           </div>
         </div>
 
-        {/* Books Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredBooks.map((book) => (
-            <div
-              key={book.id}
-              className="bg-green-100 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer"
-              onClick={() => setSelectedBook(book)}
-            >
-              {/* Book Cover Image */}
-              <div className="h-48 bg-blue-400 flex items-center justify-center">
-                {book.cover ? (
-                  <img
-                    src={book.cover}
-                    alt={`Cover of ${book.title}`}
-                    className="h-full w-full object-contain p-4"
-                    onError={(e) => {
-                      // Fallback if image fails to load
-                      (e.target as HTMLImageElement).src =
-                        "/default-book-cover.png";
-                      (e.target as HTMLImageElement).className =
-                        "h-32 w-32 object-contain";
-                    }}
-                  />
-                ) : (
-                  <BookOpen className="w-16 h-16 text-gray-400" />
-                )}
-              </div>
+        {/* Loading and Error States */}
+        {loading && (
+          <div className="text-center py-12">
+            <p className="text-gray-500">Loading your books...</p>
+          </div>
+        )}
 
-              {/* Book Details */}
-              <div className="p-4">
-                <h3 className="text-lg font-semibold mb-1 text-gray-800">
-                  {book.title}
-                </h3>
-                <p className="text-gray-600 mb-2">{book.author}</p>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500">{book.category}</span>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      book.status === "Available"
-                        ? "bg-green-100 text-green-800"
-                        : "bg-red-100 text-red-800"
-                    }`}
-                  >
-                    {book.status}
-                  </span>
+        {error && (
+          <div className="text-center py-12">
+            <p className="text-red-500">{error}</p>
+          </div>
+        )}
+
+        {/* Books Grid */}
+        {!loading && !error && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredBooks.map((book) => (
+              <div
+                key={book.id}
+                className="bg-green-100 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer"
+                onClick={() => setSelectedBook(book)}
+              >
+                <div className="h-48 bg-blue-400 flex items-center justify-center">
+                  {book.cover ? (
+                    <img
+                      src={book.cover}
+                      alt={`Cover of ${book.title}`}
+                      className="h-full w-full object-contain p-4"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src =
+                          "/default-book-cover.png";
+                        (e.target as HTMLImageElement).className =
+                          "h-32 w-32 object-contain";
+                      }}
+                    />
+                  ) : (
+                    <BookOpen className="w-16 h-16 text-gray-400" />
+                  )}
+                </div>
+
+                <div className="p-4">
+                  <h3 className="text-lg font-semibold mb-1 text-gray-800">
+                    {book.title}
+                  </h3>
+                  <p className="text-gray-600 mb-2">{book.author}</p>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">
+                      {book.category}
+                    </span>
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        book.status === "Available"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {book.status}
+                    </span>
+                  </div>
+                  {book.dueDate && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      Due: {new Date(book.dueDate).toLocaleDateString()}
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Empty State */}
-        {filteredBooks.length === 0 && (
+        {!loading && !error && filteredBooks.length === 0 && (
           <div className="text-center py-12">
             <p className="text-gray-500">
-              No books found matching your criteria
+              {books.length === 0
+                ? "You haven't borrowed any books yet."
+                : "No books found matching your criteria"}
             </p>
           </div>
         )}
@@ -197,18 +302,17 @@ export default function BooksPage() {
                           src={selectedBook.cover}
                           alt={`Cover of ${selectedBook.title}`}
                           className="h-full w-full object-contain p-4"
-                    onError={(e) => {
-                      // Fallback if image fails to load
-                      (e.target as HTMLImageElement).src =
-                        "/default-book-cover.png";
-                      (e.target as HTMLImageElement).className =
-                        "h-32 w-32 object-contain";
-                    }}
-                  />
-                ) : (
-                  <BookOpen className="w-16 h-16 text-gray-400" />
-                )}
-              </div>
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              "/default-book-cover.png";
+                            (e.target as HTMLImageElement).className =
+                              "h-32 w-32 object-contain";
+                          }}
+                        />
+                      ) : (
+                        <BookOpen className="w-16 h-16 text-gray-400" />
+                      )}
+                    </div>
                   </div>
                   <div className="md:col-span-2">
                     <div className="mb-4">
@@ -216,7 +320,8 @@ export default function BooksPage() {
                         Description
                       </h3>
                       <p className="text-gray-600">
-                        {selectedBook.description}
+                        {selectedBook.description ||
+                          "No description available."}
                       </p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -224,7 +329,9 @@ export default function BooksPage() {
                         <h3 className="font-medium text-gray-700 mb-1">
                           Category
                         </h3>
-                        <p className="text-gray-600">{selectedBook.category}</p>
+                        <p className="text-gray-600">
+                          {selectedBook.category || "N/A"}
+                        </p>
                       </div>
                       <div>
                         <h3 className="font-medium text-gray-700 mb-1">
@@ -241,6 +348,28 @@ export default function BooksPage() {
                         </span>
                       </div>
                     </div>
+                    {selectedBook.borrowDate && (
+                      <div className="mt-4">
+                        <h3 className="font-medium text-gray-700 mb-1">
+                          Borrow Date
+                        </h3>
+                        <p className="text-gray-600">
+                          {new Date(
+                            selectedBook.borrowDate
+                          ).toLocaleDateString()}
+                        </p>
+                      </div>
+                    )}
+                    {selectedBook.dueDate && (
+                      <div className="mt-4">
+                        <h3 className="font-medium text-gray-700 mb-1">
+                          Due Date
+                        </h3>
+                        <p className="text-gray-600">
+                          {new Date(selectedBook.dueDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -252,42 +381,6 @@ export default function BooksPage() {
                       Borrow This Book
                     </h3>
                     <form onSubmit={handleBorrowSubmit}>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Student ID
-                          </label>
-                          <input
-                            type="text"
-                            className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            value={borrowForm.studentId}
-                            onChange={(e) =>
-                              setBorrowForm({
-                                ...borrowForm,
-                                studentId: e.target.value,
-                              })
-                            }
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Student Name
-                          </label>
-                          <input
-                            type="text"
-                            className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            value={borrowForm.studentName}
-                            onChange={(e) =>
-                              setBorrowForm({
-                                ...borrowForm,
-                                studentName: e.target.value,
-                              })
-                            }
-                            required
-                          />
-                        </div>
-                      </div>
                       <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Return Date
@@ -305,6 +398,7 @@ export default function BooksPage() {
                               })
                             }
                             required
+                            min={new Date().toISOString().split("T")[0]}
                           />
                         </div>
                       </div>
