@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { BookOpen, Clock, History, BookCheck } from "lucide-react";
 import { useBookContext } from "../../context/BookContext";
+// import { toast } from "sonner"; // or your preferred toast library
 
 interface Book {
   id: number;
@@ -14,11 +15,14 @@ interface Book {
   description: string;
   borrowDate?: string;
   returnDate?: string;
+  dueDate?: string;
+  borrowingId?: number;
 }
 
 export default function StudentDashboard() {
-  const { borrowedBooks } = useBookContext();
+  const { borrowedBooks, returnBook } = useBookContext();
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const [isReturning, setIsReturning] = useState(false);
 
   const stats = [
     {
@@ -36,8 +40,8 @@ export default function StudentDashboard() {
     {
       title: "Overdue Books",
       value: borrowedBooks.filter(book => {
-        const returnDate = new Date(book.returnDate || "");
-        return returnDate < new Date() && book.status === "Borrowed";
+        const dueDate = new Date(book.dueDate || "");
+        return dueDate < new Date() && book.status === "Borrowed";
       }).length,
       icon: Clock,
       color: "text-red-500"
@@ -49,6 +53,22 @@ export default function StudentDashboard() {
       color: "text-purple-500"
     }
   ];
+
+  const handleReturnBook = async () => {
+    if (!selectedBook?.borrowingId) return;
+    
+    setIsReturning(true);
+    try {
+      await returnBook(selectedBook.borrowingId);
+      alert("Book returned successfully");
+      setSelectedBook(null);
+    } catch (error) {
+      alert("Failed to return book");
+      console.error("Error returning book:", error);
+    } finally {
+      setIsReturning(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-green-200 p-4 md:p-8 rounded-3xl">
@@ -80,38 +100,47 @@ export default function StudentDashboard() {
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-gray-900">Currently Reading</h2>
-            <span className="text-sm text-gray-500">{borrowedBooks.length} books</span>
+            <span className="text-sm text-gray-500">
+              {borrowedBooks.filter(b => b.status === "Borrowed").length} books
+            </span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {borrowedBooks.map((book) => (
-              <div
-                key={book.id}
-                className="border rounded-lg p-4 hover:shadow-md transition cursor-pointer"
-                onClick={() => setSelectedBook(book)}
-              >
-                <div className="flex items-start space-x-4">
-                  <div className="w-16 h-24 bg-gray-100 rounded flex items-center justify-center">
-                    {book.cover ? (
-                      <img
-                        src={book.cover}
-                        alt={book.title}
-                        className="w-full h-full object-cover rounded"
-                      />
-                    ) : (
-                      <BookOpen className="w-8 h-8 text-gray-400" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-medium text-gray-900">{book.title}</h3>
-                    <p className="text-sm text-gray-500">{book.author}</p>
-                    <div className="mt-2 flex items-center text-sm text-gray-500">
-                      <Clock className="w-4 h-4 mr-1" />
-                      <span>Return by: {book.returnDate}</span>
+            {borrowedBooks
+              .filter(book => book.status === "Borrowed")
+              .map((book) => (
+                <div
+                  key={book.id}
+                  className="border rounded-lg p-4 hover:shadow-md transition cursor-pointer"
+                  onClick={() => setSelectedBook(book)}
+                >
+                  <div className="flex items-start space-x-4">
+                    <div className="w-16 h-24 bg-gray-100 rounded flex items-center justify-center">
+                      {book.cover ? (
+                        <img
+                          src={book.cover}
+                          alt={book.title}
+                          className="w-full h-full object-cover rounded"
+                        />
+                      ) : (
+                        <BookOpen className="w-8 h-8 text-gray-400" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-medium text-gray-900">{book.title}</h3>
+                      <p className="text-sm text-gray-500">{book.author}</p>
+                      <div className="mt-2 flex items-center text-sm text-gray-500">
+                        <Clock className="w-4 h-4 mr-1" />
+                        <span>Due: {book.dueDate}</span>
+                      </div>
+                      {new Date(book.dueDate || "") < new Date() && (
+                        <span className="mt-1 inline-block px-2 py-1 text-xs font-medium text-red-800 bg-red-100 rounded-full">
+                          Overdue
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         </div>
 
@@ -145,8 +174,17 @@ export default function StudentDashboard() {
                     <p className="text-sm text-gray-500">{book.author}</p>
                     <div className="mt-2 flex items-center text-sm text-gray-500">
                       <Clock className="w-4 h-4 mr-1" />
-                      <span>Borrowed: {book.borrowDate} - Returned: {book.returnDate}</span>
+                      <span>
+                        {book.borrowDate} - {book.returnDate || "Not returned"}
+                      </span>
                     </div>
+                    <span className={`mt-1 inline-block px-2 py-1 text-xs font-medium rounded-full ${
+                      book.status === "Borrowed" 
+                        ? "bg-green-100 text-green-800" 
+                        : "bg-gray-100 text-gray-800"
+                    }`}>
+                      {book.status}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -197,7 +235,9 @@ export default function StudentDashboard() {
                       <div>
                         <h3 className="font-medium text-gray-700 mb-1">Status</h3>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          selectedBook.status === "Borrowed" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                          selectedBook.status === "Borrowed" 
+                            ? "bg-green-100 text-green-800" 
+                            : "bg-gray-100 text-gray-800"
                         }`}>
                           {selectedBook.status}
                         </span>
@@ -208,12 +248,27 @@ export default function StudentDashboard() {
                         <h3 className="font-medium text-gray-700 mb-1">Borrowing Details</h3>
                         <p className="text-gray-600">
                           Borrowed on: {selectedBook.borrowDate}
-                          {selectedBook.returnDate && ` | Return by: ${selectedBook.returnDate}`}
+                          {selectedBook.dueDate && ` | Due: ${selectedBook.dueDate}`}
                         </p>
+                        {selectedBook.returnDate && (
+                          <p className="text-gray-600">Returned on: {selectedBook.returnDate}</p>
+                        )}
                       </div>
                     )}
                   </div>
                 </div>
+
+                {selectedBook.borrowingId && selectedBook.status === "Borrowed" && (
+                  <button
+                    onClick={handleReturnBook}
+                    disabled={isReturning}
+                    className={`mt-4 w-full bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 ${
+                      isReturning ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {isReturning ? 'Returning...' : 'Return Book'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -221,4 +276,4 @@ export default function StudentDashboard() {
       </div>
     </div>
   );
-} 
+}

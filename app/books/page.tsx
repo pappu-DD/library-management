@@ -30,7 +30,7 @@ export default function BooksPage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { addBorrowedBook } = useBookContext(); // Assuming this context manages local borrowed books state
+  const { borrowBook } = useBookContext(); // Assuming this context manages local borrowed books state
 
   const categories = [
     "All",
@@ -80,54 +80,84 @@ export default function BooksPage() {
     return matchesSearch && matchesCategory;
   });
 
+  // app/books/page.tsx
   const handleBorrowSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (selectedBook) {
-      const borrowData = {
+    if (!selectedBook) return;
+  
+    try {
+      // 1. First update the book status
+      const updateResponse = await fetch(`/api/books/${selectedBook.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Borrowed" }),
+      });
+  
+      if (!updateResponse.ok) {
+        const errorText = await updateResponse.text();
+        // Handle HTML error responses
+        if (errorText.startsWith('<!DOCTYPE')) {
+          throw new Error('Server returned an error page');
+        }
+        try {
+          const errorData = JSON.parse(errorText);
+          throw new Error(errorData.error || 'Failed to update book status');
+        } catch {
+          throw new Error(errorText || 'Failed to update book status');
+        }
+      }
+  
+      // 2. Create borrowing record
+      const borrowResponse = await fetch('/api/borrowings', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookId: selectedBook.id,
+          returnDate: borrowForm.returnDate,
+          studentId: borrowForm.studentId,
+          studentName: borrowForm.studentName
+        }),
+      });
+  
+      if (!borrowResponse.ok) {
+        const errorText = await borrowResponse.text();
+        if (errorText.startsWith('<!DOCTYPE')) {
+          throw new Error('Server returned an error page');
+        }
+        try {
+          const errorData = JSON.parse(errorText);
+          throw new Error(errorData.error || 'Failed to create borrowing record');
+        } catch {
+          throw new Error(errorText || 'Failed to create borrowing record');
+        }
+      }
+  
+      // 3. Update local state
+      const updatedBook = {
+        ...selectedBook,
         status: "Borrowed",
         borrowDate: new Date().toISOString().split("T")[0],
-        returnDate: borrowForm.returnDate,
       };
-
-      try {
-        const response = await fetch(`/api/books`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ id: selectedBook.id, ...borrowData }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error("Failed to borrow book:", errorData);
-          alert(`Failed to borrow book: ${errorData.error || 'An error occurred.'}`);
-          return;
-        }
-
-        // Optimistically update the local state
-        setBooks((prevBooks) =>
-          prevBooks.map((book) =>
-            book.id === selectedBook.id ? { ...book, ...borrowData } : book
-          )
-        );
-
-        const borrowedBook = {
-          ...selectedBook,
-          ...borrowData,
-        };
-        addBorrowedBook(borrowedBook); // Update local borrowed books context
-        alert(`Book borrowed successfully! Return by: ${borrowForm.returnDate}`);
-        setSelectedBook(null);
-        setBorrowForm({
-          studentId: "",
-          studentName: "",
-          returnDate: "",
-        });
-      } catch (error) {
-        console.error("Error borrowing book:", error);
-        alert("Failed to borrow book. Please try again.");
-      }
+  
+      setBooks(prevBooks =>
+        prevBooks.map(book =>
+          book.id === selectedBook.id ? updatedBook : book
+        )
+      );
+  
+      alert(`Book borrowed successfully!`);
+      setSelectedBook(null);
+      setBorrowForm({
+        studentId: "",
+        studentName: "",
+        returnDate: "",
+      });
+  
+    } catch (error) {
+      console.error("Error borrowing book:", error);
+      alert(
+        error instanceof Error ? error.message : "Failed to borrow book"
+      );
     }
   };
   return (
