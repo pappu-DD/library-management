@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Search, Filter, BookOpen, Clock, User, Calendar } from "lucide-react";
+import { Search, Filter, BookOpen, Clock, User, Calendar, LoaderCircle } from "lucide-react";
 import { useBookContext } from "../context/BookContext";
+import { FadeLoader } from 'react-spinners';
+
 // Remove useBooksContext as we'll fetch directly
 // import { useBooksContext } from "../context/BooksContext";
 
@@ -160,6 +162,23 @@ export default function BooksPage() {
       );
     }
   };
+if (loading) {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-white bg-opacity-50 z-50">
+      <div className="text-center">
+        <FadeLoader 
+          color="#3B82F6"  // blue-500 color (you can change this)
+          height={15}
+          width={5}
+          radius={2}
+          margin={2}
+        />
+        <p className="mt-4 text-gray-600">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-yellow-300 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
