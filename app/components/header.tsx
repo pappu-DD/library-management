@@ -117,12 +117,7 @@ const Header = () => {
 
             {/* Mobile menu button - Visible only on mobile */}
             <div className="sm:hidden flex items-center">
-              <Link
-                href="/contact"
-                className="bg-green-500 text-white hover:bg-green-600 rounded-md inline-flex items-center p-2 px-3 m-2 text-sm font-medium"
-              >
-                Contact
-              </Link>
+              
               
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
