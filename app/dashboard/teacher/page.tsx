@@ -34,6 +34,15 @@ interface Book {
 }
 
 export default function LibrarianDashboard() {
+
+
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [credentials, setCredentials] = useState({
+    id: '',
+    password: ''
+  });
+
+  const [authError, setAuthError] = useState('');
   const router = useRouter();
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,10 +85,10 @@ export default function LibrarianDashboard() {
     fetchBooks();
   }, []);
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('librarianLoggedIn');
-    router.push('/books');
-  };
+  // const handleLogout = () => {
+  //   sessionStorage.removeItem('librarianLoggedIn');
+  //   router.push('/books');
+  // };
 
   const handleAddBook = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,6 +203,84 @@ export default function LibrarianDashboard() {
     { title: 'Categories', value: new Set(books.map(b => b.category)).size, icon: BookOpen, color: 'bg-purple-500' },
   ];
 
+
+
+   useEffect(() => {
+    const storedAuth = sessionStorage.getItem('librarianLoggedIn');
+    if (storedAuth === 'true') {
+      setIsAuthenticated(true);
+      fetchBooks();
+    }
+  }, []);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (credentials.id === 'admin' && credentials.password === 'admin@123') {
+      setIsAuthenticated(true);
+      sessionStorage.setItem('librarianLoggedIn', 'true');
+      setAuthError('');
+      fetchBooks();
+    } else {
+      setAuthError('Invalid credentials. Please try again.');
+    }
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('librarianLoggedIn');
+    setIsAuthenticated(false);
+    setCredentials({ id: '', password: '' });
+  };
+   if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-fuchsia-400 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+          <h2 className="text-2xl font-bold text-gray-800 text-center">Librarian Login</h2>
+          <p className='text-center mb-6'>(Provided by organization)</p>
+          <form onSubmit={handleLogin}>
+            <div className="mb-4">
+              <label htmlFor="id" className="block text-sm font-medium text-gray-700 mb-1">
+                ID
+              </label>
+              <input
+                type="text"
+                id="id"
+                name="id"
+                value={credentials.id}
+                onChange={(e) => setCredentials({ ...credentials, id: e.target.value })}
+                className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <div className="mb-6">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                Password
+              </label>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                value={credentials.password}
+                onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+                className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            {authError && (
+              <div className="mb-4 text-red-600 text-sm text-center">{authError}</div>
+            )}
+            <button
+              type="submit"
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Login
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  
   if (loading) {
     return (
       <div className="min-h-screen bg-fuchsia-400 flex items-center justify-center">
