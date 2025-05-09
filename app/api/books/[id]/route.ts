@@ -1,15 +1,17 @@
 // app/api/books/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/configs/db"; // adjust path to your Drizzle setup
-import { books } from "@/configs/schema"; // adjust to your actual schema path
+import { db } from "@/configs/db";
+import { books } from "@/configs/schema";
 import { eq } from "drizzle-orm";
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest) {
   try {
-    const bookId = parseInt(params.id);
+    const url = new URL(req.url);
+    const id = url.pathname.split("/").pop(); // gets the 'id' from the URL
+    const bookId = parseInt(id || "");
+
     const body = await req.json();
 
-    // Update the book's status to "Borrowed"
     await db.update(books)
       .set({
         status: "Borrowed"
